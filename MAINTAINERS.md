@@ -7,15 +7,12 @@ review and merge policy.
 
 | GitHub account | Project role | Responsibilities |
 | --- | --- | --- |
-| [@lidge-jun](https://github.com/lidge-jun) | Project owner | Project direction, releases, repository administration, and final governance decisions |
-| [@Ingwannu](https://github.com/Ingwannu) | Maintainer | Issue and pull-request triage, `dev` integration, security review, and repository maintenance |
-| [@Wibias](https://github.com/Wibias) | Maintainer | Issue and pull-request triage, `dev` integration, and provider/CI maintenance |
+| [@iamsupersocks](https://github.com/iamsupersocks) | Project owner | Project direction, releases, repository administration, and final governance decisions |
 
 The table describes project responsibilities. Actual repository permissions remain controlled
 through GitHub repository settings.
 
-`dev` is the only integration line. The former `dev2-go` carry duty is retired;
-see [The retired `dev2-go` line](#the-retired-dev2-go-line).
+`dev` is the only integration line.
 
 ## Review and merge policy
 
@@ -30,7 +27,7 @@ see [The retired `dev2-go` line](#the-retired-dev2-go-line).
   description is complete: local CI green, branch on the latest `dev` commit,
   all correct Codex and CodeRabbit findings fixed, and the ready-for-review
   confirmation. When all four boxes are ticked the gate marks the PR ready and
-  notifies the maintainers listed in `MAINTAINERS.md` (excluding the author).
+  notifies the maintainer listed in `MAINTAINERS.md` (excluding the author).
   Completion is bound to the exact commit the PR head pointed at: if new
   commits are pushed afterwards, the gate moves the PR back to draft, resets
   the checklist and the notification, and asks the author to test and tick the
@@ -42,10 +39,10 @@ see [The retired `dev2-go` line](#the-retired-dev2-go-line).
   start repository CI; a maintainer has to — so the gate never disproves it;
   a new push still resets every box. A disproved claim unticks the matching
   box and keeps the PR a draft.
-  Authors with repository push permission skip the ancestry heuristic only. As
-  with the approval requirement above, this is enforced by convention until
-  branch protection is configured (see the note under the change log).
-- A pull request requires approval from at least one maintainer and successful required CI checks
+  Authors with repository push permission skip the ancestry heuristic only.
+  As with the approval requirement above, this is enforced by convention until
+  branch protection is configured.
+- A pull request requires approval from the maintainer and successful required CI checks
   before merge.
 - Authors do not approve their own pull requests.
 - Authentication, credential handling, GitHub Actions, release automation, dependency installation,
@@ -59,72 +56,20 @@ see [The retired `dev2-go` line](#the-retired-dev2-go-line).
   with the service is disclosed, not disqualifying, and it does not lower the evidence bar. When the
   evidence is incomplete, prefer an inert `src/providers/free-directory.ts` reference row over a
   canonical registry entry.
-- Security-sensitive and release-related changes should be reviewed by both maintainers when
-  practical.
+- Security-sensitive and release-related changes should be reviewed carefully, with security-boundary
+  changes receiving explicit review per the security-review rule above.
 - Direct pushes are reserved for maintainer-owned integration work, urgent repairs, or incident
   recovery. The same CI and documentation requirements still apply.
 - Promotion from `dev` to `main` and npm releases is maintainer-controlled.
-
-## The retired `dev2-go` line
-
-`dev2-go` was a parallel integration line that rebuilt the runtime as a Go
-native port, and policy required every merge into `dev` to be rebased onto it
-and ported under `go/`. That policy is withdrawn as of 2026-07-30.
-
-The dual-track cost outran its return: the carry backlog never cleared (17
-commits and 9 open `needs-go-port` issues at the time of the decision, against
-594 commits of divergence), and dogfooding the Go runtime kept producing new
-defects. Bun-native TypeScript on `dev` is the single runtime line again.
-
-- The branch has been deleted from this repository. Its full history is
-  published at
-  [lidge-jun/opencodex-go-archive](https://github.com/lidge-jun/opencodex-go-archive),
-  and its final tip stays reachable here as the `archive/dev2-go` tag.
-- A merge into `dev` carries no port obligation. The nine open `needs-go-port`
-  issues (#661, #663, #666, #670, #674, #678, #680, #685, #703) were closed as
-  not planned, and the `needs-go-port` label no longer exists on the
-  repository.
-- Future native work is expected to be an incremental module landing on `dev`
-  (Rust via N-API is the current candidate), not a second integration branch.
-  Reopening a parallel runtime line is an owner decision.
 
 ## Maintainer changes
 
 Adding or removing a maintainer requires:
 
-1. agreement from the project owner,
-2. review by another current maintainer when available, and
-3. updates to this file and [`.github/CODEOWNERS`](./.github/CODEOWNERS).
-
-### Change log
-
-- 2026-07-27 — [@Wibias](https://github.com/Wibias) added as a maintainer.
-  Requirement 1 (agreement from the project owner) is met: the owner requested
-  the addition. **Requirement 2 (review by another current maintainer) was
-  never satisfied in the form this document describes.** The three commits that
-  carried the addition (`a2693c02`, `dc3a4ade`, `02bbd47a`) landed on `dev` as
-  direct owner pushes with no associated pull request, so no second maintainer
-  reviewed them. Requirement 3 is met by this file and `.github/CODEOWNERS`.
-  The addition is in effect regardless: @Wibias holds write access on the
-  repository and has been merging pull requests since 2026-07-26. This entry
-  records the gap rather than papering over it — a later maintainer change
-  should go through a reviewed pull request.
-
-  Scope covers issue and pull-request triage, `dev` integration, and
-  provider/CI maintenance. (This entry originally also described carrying
-  merged `dev` work onto `dev2-go`; that duty ended when the line was retired
-  on 2026-07-30.) Security-boundary ownership in `.github/CODEOWNERS` is
-  deliberately unchanged: authentication, credential handling, GitHub Actions,
-  and release automation keep the two owners already listed for those paths, so
-  this addition does not widen the review surface for them.
-
-  CODEOWNERS requests reviews rather than enforcing them — no branch protection
-  rule is configured on this repository, so code-owner approval is a convention
-  here, not a gate. The same is true of the approval requirement in the review
-  and merge policy above. Widening the security boundary, or enforcing either
-  of these through branch protection, is a separate decision.
+1. agreement from the project owner, and
+2. updates to this file and [`.github/CODEOWNERS`](./.github/CODEOWNERS).
 
 ## Security reports
 
-Private vulnerability reports are handled by the current maintainers according to
+Private vulnerability reports are handled by the maintainer according to
 [`SECURITY.md`](./SECURITY.md). Do not disclose secrets or exploit details in a public issue.

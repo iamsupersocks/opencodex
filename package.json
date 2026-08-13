@@ -95,11 +95,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lidge-jun/opencodex.git"
+    "url": "git+https://github.com/iamsupersocks/opencodex.git"
   },
-  "homepage": "https://lidge-jun.github.io/opencodex/",
+  "homepage": "https://github.com/iamsupersocks/opencodex",
   "bugs": {
-    "url": "https://github.com/lidge-jun/opencodex/issues"
+    "url": "https://github.com/iamsupersocks/opencodex/issues"
   },
   "license": "MIT"
 }

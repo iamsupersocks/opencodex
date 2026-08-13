@@ -1,34 +1,34 @@
 # Default reviewers
-* @lidge-jun @Ingwannu @Wibias
+* @iamsupersocks
 
 # High-impact runtime behavior
-/src/adapters/ @lidge-jun @Ingwannu @Wibias
-/src/providers/ @lidge-jun @Ingwannu @Wibias
-/src/codex/ @lidge-jun @Ingwannu @Wibias
-/src/server/ @lidge-jun @Ingwannu @Wibias
+/src/adapters/ @iamsupersocks
+/src/providers/ @iamsupersocks
+/src/codex/ @iamsupersocks
+/src/server/ @iamsupersocks
 
 # Repository automation and release security
-/.github/ @lidge-jun @Ingwannu
-/.coderabbit.yaml @lidge-jun @Ingwannu
-/.npmignore @lidge-jun @Ingwannu
-/bunfig.toml @lidge-jun @Ingwannu
-/scripts/release.ts @lidge-jun @Ingwannu
-/scripts/release-notes.ts @lidge-jun @Ingwannu
-/scripts/prepare-package.ts @lidge-jun @Ingwannu
-/package.json @lidge-jun @Ingwannu
-/bun.lock @lidge-jun @Ingwannu
+/.github/ @iamsupersocks
+/.coderabbit.yaml @iamsupersocks
+/.npmignore @iamsupersocks
+/bunfig.toml @iamsupersocks
+/scripts/release.ts @iamsupersocks
+/scripts/release-notes.ts @iamsupersocks
+/scripts/prepare-package.ts @iamsupersocks
+/package.json @iamsupersocks
+/bun.lock @iamsupersocks
 
 # Authentication, credentials, and management API
-/src/oauth/ @lidge-jun @Ingwannu
-/src/codex/auth-context.ts @lidge-jun @Ingwannu
-/src/server/auth-cors.ts @lidge-jun @Ingwannu
-/src/server/management-api.ts @lidge-jun @Ingwannu
-/src/lib/admin-secrets.ts @lidge-jun @Ingwannu
-/src/lib/service-secrets.ts @lidge-jun @Ingwannu
-/src/server/management-auth.ts @lidge-jun @Ingwannu
+/src/oauth/ @iamsupersocks
+/src/codex/auth-context.ts @iamsupersocks
+/src/server/auth-cors.ts @iamsupersocks
+/src/server/management-api.ts @iamsupersocks
+/src/lib/admin-secrets.ts @iamsupersocks
+/src/lib/service-secrets.ts @iamsupersocks
+/src/server/management-auth.ts @iamsupersocks
 
 # Governance and security policy
-/AGENTS.md @lidge-jun @Ingwannu
-**/AGENTS.md @lidge-jun @Ingwannu
-/MAINTAINERS.md @lidge-jun @Ingwannu
-/SECURITY.md @lidge-jun @Ingwannu
+/AGENTS.md @iamsupersocks
+**/AGENTS.md @iamsupersocks
+/MAINTAINERS.md @iamsupersocks
+/SECURITY.md @iamsupersocks
