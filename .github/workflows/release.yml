@@ -41,6 +41,12 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Refuse dispatch from a non-iamsupersocks account
+        if: ${{ github.repository_owner != 'iamsupersocks' }}
+        run: |
+          echo "::error::release workflow may only run from the iamsupersocks account; got ${GITHUB_REPOSITORY_OWNER}"
+          exit 1
+
       - name: Checkout trusted dispatch guard
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:

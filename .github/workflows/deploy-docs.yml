@@ -1,11 +1,6 @@
 name: Deploy Docs to GitHub Pages
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs-site/**"
-      - ".github/workflows/deploy-docs.yml"
   workflow_dispatch:
 
 permissions:
@@ -39,6 +34,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Refuse dispatch from a non-iamsupersocks account
+        if: ${{ github.repository_owner != 'iamsupersocks' }}
+        run: |
+          echo "::error::docs deploy may only run from the iamsupersocks account; got ${GITHUB_REPOSITORY_OWNER}"
+          exit 1
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

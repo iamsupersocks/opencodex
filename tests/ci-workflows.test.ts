@@ -558,11 +558,13 @@ describe("GitHub Actions hardening", () => {
   test("release workflow gates the exact SHA, channel, and service surface without injection", async () => {
     const workflow = await readText(".github/workflows/release.yml");
     const release = Bun.YAML.parse(workflow) as {
+      on?: Record<string, unknown>;
       permissions?: Record<string, string>;
       jobs?: {
         "validate-dispatch"?: {
           "runs-on"?: string;
           permissions?: Record<string, string>;
+          steps?: Array<{ name?: string; if?: string; run?: string }>;
         };
         publish?: {
           "runs-on"?: string;
@@ -572,6 +574,11 @@ describe("GitHub Actions hardening", () => {
       };
     };
     
+    // Manual dispatch only — no push/pull_request/schedule automation can
+    // trigger a publish.
+    expect(Object.keys(release.on ?? {}).sort()).toEqual(["workflow_dispatch"]);
+    expect(workflow).not.toMatch(/^\s*(push|pull_request|schedule):/m);
+
     // Keep the workflow unprivileged by default. Dispatch validation gets only
     // read access; write + OIDC permissions exist only on the gated publish job.
     expect(release.permissions).toEqual({});
@@ -580,6 +587,14 @@ describe("GitHub Actions hardening", () => {
     expect(release.jobs?.["validate-dispatch"]?.permissions).toEqual({
       contents: "read",
     });
+    // Fail closed before any publish: a manual dispatch from any account other
+    // than iamsupersocks must fail the validate-dispatch gate outright.
+    const ownerGuard = (release.jobs?.["validate-dispatch"]?.steps ?? []).find(
+      step => step.name === "Refuse dispatch from a non-iamsupersocks account",
+    );
+    expect(ownerGuard?.if).toBe("${{ github.repository_owner != 'iamsupersocks' }}");
+    expect(ownerGuard?.run).toContain("iamsupersocks");
+    expect(ownerGuard?.run).toContain("exit 1");
     
     expect(release.jobs?.publish?.needs).toBe("validate-dispatch");
     expect(release.jobs?.publish?.["runs-on"]).toBe("ubuntu-latest");
@@ -4715,6 +4730,14 @@ describe("GitHub Actions hardening", () => {
 
   test("docs deployment is pinned, bounded, and scoped to Pages", async () => {
     const workflow = await readText(".github/workflows/deploy-docs.yml");
+    const docs = Bun.YAML.parse(workflow) as {
+      on?: Record<string, unknown>;
+      jobs?: { deploy?: { steps?: Array<{ name?: string; if?: string; run?: string }> } };
+    };
+
+    // Manual dispatch only — no push auto-deploy on docs-site changes.
+    expect(Object.keys(docs.on ?? {}).sort()).toEqual(["workflow_dispatch"]);
+    expect(workflow).not.toMatch(/^\s*(push|pull_request|schedule):/m);
 
     expect(workflow).toContain("permissions:\n  contents: read\n  pages: write\n  id-token: write");
     expect(workflow).toContain("cancel-in-progress: false");
@@ -4724,6 +4747,15 @@ describe("GitHub Actions hardening", () => {
     expect(workflow).toContain("withastro/action@e84f40bd8d2caa9e768ec82ad30dd81f0b280853");
     expect(workflow).toContain("actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128");
     expect(workflow).not.toMatch(/uses:\s+\S+@(?:v\d+|main|master)\b/);
+
+    // Fail closed before any deployment: a manual dispatch from any account
+    // other than iamsupersocks must fail the deploy job outright.
+    const ownerGuard = (docs.jobs?.deploy?.steps ?? []).find(
+      step => step.name === "Refuse dispatch from a non-iamsupersocks account",
+    );
+    expect(ownerGuard?.if).toBe("${{ github.repository_owner != 'iamsupersocks' }}");
+    expect(ownerGuard?.run).toContain("iamsupersocks");
+    expect(ownerGuard?.run).toContain("exit 1");
   });
 
   test("issue-quality workflow rejects workflow_dispatch pull request numbers before mutation", async () => {
