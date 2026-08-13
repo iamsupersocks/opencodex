@@ -3,19 +3,28 @@ name: Deploy Docs to GitHub Pages
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
+  validate-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse dispatch from a non-iamsupersocks account
+        if: ${{ github.repository_owner != 'iamsupersocks' }}
+        run: |
+          echo "::error::docs deploy may only run from the iamsupersocks account; got ${GITHUB_REPOSITORY_OWNER}"
+          exit 1
+
   build:
+    needs: validate-owner
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -33,13 +42,10 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
     steps:
-      - name: Refuse dispatch from a non-iamsupersocks account
-        if: ${{ github.repository_owner != 'iamsupersocks' }}
-        run: |
-          echo "::error::docs deploy may only run from the iamsupersocks account; got ${GITHUB_REPOSITORY_OWNER}"
-          exit 1
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

@@ -4732,14 +4732,22 @@ describe("GitHub Actions hardening", () => {
     const workflow = await readText(".github/workflows/deploy-docs.yml");
     const docs = Bun.YAML.parse(workflow) as {
       on?: Record<string, unknown>;
-      jobs?: { deploy?: { steps?: Array<{ name?: string; if?: string; run?: string }> } };
+      permissions?: Record<string, string>;
+      jobs?: {
+        "validate-owner"?: { steps?: Array<{ name?: string; if?: string; run?: string }> };
+        build?: { needs?: string | string[]; permissions?: Record<string, string> };
+        deploy?: { needs?: string | string[]; permissions?: Record<string, string>; steps?: Array<{ name?: string; if?: string; run?: string }> };
+      };
     };
 
     // Manual dispatch only — no push auto-deploy on docs-site changes.
     expect(Object.keys(docs.on ?? {}).sort()).toEqual(["workflow_dispatch"]);
     expect(workflow).not.toMatch(/^\s*(push|pull_request|schedule):/m);
 
-    expect(workflow).toContain("permissions:\n  contents: read\n  pages: write\n  id-token: write");
+    // No privileged default token: the workflow grants nothing globally and
+    // each job declares only the narrowest permissions it needs.
+    expect(docs.permissions).toEqual({});
+    expect(workflow).toContain("permissions: {}");
     expect(workflow).toContain("cancel-in-progress: false");
     expect(workflow).toContain("timeout-minutes: 15");
     expect(workflow).toContain("timeout-minutes: 10");
@@ -4748,14 +4756,23 @@ describe("GitHub Actions hardening", () => {
     expect(workflow).toContain("actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128");
     expect(workflow).not.toMatch(/uses:\s+\S+@(?:v\d+|main|master)\b/);
 
-    // Fail closed before any deployment: a manual dispatch from any account
-    // other than iamsupersocks must fail the deploy job outright.
-    const ownerGuard = (docs.jobs?.deploy?.steps ?? []).find(
+    // validate-owner runs unprivileged and fail-closed: a manual dispatch from
+    // any account other than iamsupersocks must abort before anything builds.
+    const ownerGuard = (docs.jobs?.["validate-owner"]?.steps ?? []).find(
       step => step.name === "Refuse dispatch from a non-iamsupersocks account",
     );
     expect(ownerGuard?.if).toBe("${{ github.repository_owner != 'iamsupersocks' }}");
     expect(ownerGuard?.run).toContain("iamsupersocks");
     expect(ownerGuard?.run).toContain("exit 1");
+    expect(docs.jobs?.["validate-owner"]?.permissions).toBeUndefined();
+
+    // build follows the owner gate and needs only read access to contents.
+    expect(docs.jobs?.build?.needs).toBe("validate-owner");
+    expect(docs.jobs?.build?.permissions).toEqual({ contents: "read" });
+
+    // deploy depends on build and holds exactly the two Pages credentials.
+    expect(docs.jobs?.deploy?.needs).toBe("build");
+    expect(docs.jobs?.deploy?.permissions).toEqual({ pages: "write", "id-token": "write" });
   });
 
   test("issue-quality workflow rejects workflow_dispatch pull request numbers before mutation", async () => {
