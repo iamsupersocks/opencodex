@@ -1212,12 +1212,15 @@ export const PROVIDER_REGISTRY: readonly ProviderRegistryEntry[] = [
     authKind: "oauth",
     allowKeyAuthOverride: true,
     // Priority Processing is documented for xAI's public API-key Chat Completions and
-    // Responses endpoints. OAuth is a separate Grok CLI subscription gateway and remains
-    // unclassified; do not turn this into a provider-wide supportsServiceTier declaration.
+    // Responses endpoints. OAuth is a separate Grok CLI subscription gateway: do not turn
+    // this into a provider-wide supportsServiceTier declaration. Verified 2026-09-05 only
+    // for OAuth grok-4.6 on cli-chat-proxy.grok.com/v1/responses with service_tier: priority.
+    // Other OAuth models stay unclassified.
     keyAuthServiceTier: {
       supportsServiceTier: true,
       chatServiceTier: true,
     },
+    modelSupportsServiceTier: { "grok-4.6": true },
     fastTierDescription: "Priority processing, 2x token price",
     featured: true,
     oauthId: "xai",
@@ -1258,8 +1261,10 @@ export const PROVIDER_REGISTRY: readonly ProviderRegistryEntry[] = [
     // Grok 4.6/4.5 subscription Responses callers use the native wire with the existing
     // namespace/web-search/replay normalization. Chat remains an explicit modelAdapters
     // opt-in. Multi-agent has no Chat wire and uses Responses under both auth modes.
-    // Caller-owned service tiers stay off the unclassified OAuth subscription route; key-auth
-    // Fast remains proxy-owned and is still selected through keyAuthServiceTier above.
+    // Caller-owned foreign service tiers stay off the OAuth subscription route. Canonical
+    // Fast for OAuth grok-4.6 is selected through modelSupportsServiceTier, not by
+    // forwarding arbitrary caller tiers. Key-auth Fast remains proxy-owned via
+    // keyAuthServiceTier above.
     modelWireDefaults: {
       "grok-4.6": {
         wire: "openai-responses",

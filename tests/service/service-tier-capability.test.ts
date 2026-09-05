@@ -7,14 +7,19 @@
  * ever receiving an injection (PR #860 family).
  */
 import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { applyProviderConfigHints, buildCatalogEntries, gatherRoutedModels } from "../../src/codex/catalog";
 import { applyCatalogModelMetadata } from "../../src/codex/catalog/effort";
 import type { RawEntry } from "../../src/codex/catalog/parsing";
+import { saveCredential } from "../../src/oauth/store";
 import { providerConfigSeed, enrichProviderFromRegistry } from "../../src/providers/derive";
 import { getProviderRegistryEntry } from "../../src/providers/registry";
 import { decideTier } from "../../src/providers/fastwire";
 import type { RequestLogContext } from "../../src/server/request-log";
 import { applyServiceTierGate, handleResponses } from "../../src/server/responses/core";
+import { removeTreeWithRetry } from "../helpers/remove-tree";
 import {
   canForwardServiceTierForModel,
   fastPolicyForModel,
@@ -104,14 +109,17 @@ describe("xAI Fast capability follows the captured authentication transport", ()
       .find(entry => entry.slug === "xai/grok-4.6");
   }
 
-  test("registry declares a key-auth overlay without classifying OAuth", () => {
+  test("registry declares a key-auth overlay and OAuth grok-4.6 only", () => {
     const entry = getProviderRegistryEntry("xai")!;
     expect(entry.keyAuthServiceTier).toEqual({
       supportsServiceTier: true,
       chatServiceTier: true,
     });
+    expect(entry.modelSupportsServiceTier).toEqual({ "grok-4.6": true });
     expect(entry.supportsServiceTier).toBeUndefined();
     expect(entry.chatServiceTier).toBeUndefined();
+    expect(providerConfigSeed(entry).modelSupportsServiceTier).toBeUndefined();
+    expect(providerConfigSeed(entry).supportsServiceTier).toBeUndefined();
 
     const keyPolicy = fastPolicyForModel(xaiProvider("key"), "grok-4.6", "xai");
     expect(keyPolicy).toMatchObject({
@@ -122,12 +130,16 @@ describe("xAI Fast capability follows the captured authentication transport", ()
     });
 
     const oauthPolicy = fastPolicyForModel(xaiProvider("oauth"), "grok-4.6", "xai");
-    expect(oauthPolicy.capability).toBeUndefined();
-    expect(oauthPolicy.eligibility).toBe("unclassified");
-    expect(oauthPolicy.forwardCallerTier).toBe(false);
+    expect(oauthPolicy).toMatchObject({
+      capability: true,
+      eligibility: "eligible",
+      forwardCallerTier: false,
+      adapter: "openai-responses",
+      fastTierDescription: "Priority processing, 2x token price",
+    });
   });
 
-  test("catalog and runtime publish the same key/OAuth conclusion", async () => {
+  test("catalog and runtime publish the same key/OAuth grok-4.6 conclusion", async () => {
     const keyProvider = xaiProvider("key");
     const keyPolicy = fastPolicyForModel(keyProvider, "grok-4.6", "xai");
     const keyCatalog = await catalogEntry(keyProvider);
@@ -143,10 +155,41 @@ describe("xAI Fast capability follows the captured authentication transport", ()
     const oauthProvider = xaiProvider("oauth");
     const oauthPolicy = fastPolicyForModel(oauthProvider, "grok-4.6", "xai");
     const oauthCatalog = await catalogEntry(oauthProvider);
-    expect(serviceTierSupportFromPolicy(oauthPolicy)).toBe(false);
-    expect(oauthCatalog).not.toHaveProperty("service_tiers");
-    expect(oauthCatalog).not.toHaveProperty("additional_speed_tiers");
-    expect(decideTier(oauthPolicy, true, undefined)).toEqual({ kind: "drop" });
+    expect(serviceTierSupportFromPolicy(oauthPolicy)).toBe(true);
+    expect(oauthCatalog?.service_tiers).toEqual([{
+      id: "priority",
+      name: "Fast",
+      description: "Priority processing, 2x token price",
+    }]);
+    expect(oauthCatalog?.additional_speed_tiers).toEqual(["fast"]);
+    expect(decideTier(oauthPolicy, true, undefined)).toEqual({ kind: "set", value: "priority" });
+    expect(decideTier(oauthPolicy, undefined, undefined)).toEqual({ kind: "forward-caller" });
+    expect(decideTier(oauthPolicy, undefined, "priority")).toEqual({ kind: "set", value: "priority" });
+    expect(decideTier(oauthPolicy, false, "priority")).toEqual({ kind: "drop" });
+  });
+
+  test("OAuth Fast stays grok-4.6-only; other OAuth models stay unclassified", async () => {
+    const oauthProvider = xaiProvider("oauth", { models: ["grok-4.6", "grok-4.5", "grok-4.3"] });
+    for (const modelId of ["grok-4.5", "grok-4.3"]) {
+      const policy = fastPolicyForModel(oauthProvider, modelId, "xai");
+      expect(policy.capability).toBeUndefined();
+      expect(policy.eligibility).toBe("unclassified");
+      expect(policy.forwardCallerTier).toBe(false);
+      expect(serviceTierSupportFromPolicy(policy)).toBe(false);
+      expect(decideTier(policy, true, undefined)).toEqual({ kind: "drop" });
+    }
+
+    const models = await gatherRoutedModels({
+      providers: { xai: oauthProvider },
+    } as unknown as OcxConfig);
+    const entries = buildCatalogEntries(null, [], models);
+    expect(entries.find(entry => entry.slug === "xai/grok-4.6")?.service_tiers).toEqual([{
+      id: "priority",
+      name: "Fast",
+      description: "Priority processing, 2x token price",
+    }]);
+    expect(entries.find(entry => entry.slug === "xai/grok-4.5")).not.toHaveProperty("service_tiers");
+    expect(entries.find(entry => entry.slug === "xai/grok-4.3")).not.toHaveProperty("service_tiers");
   });
 
   test("explicit supportsServiceTier=false wins in policy and catalog for both transports", async () => {
@@ -367,6 +410,26 @@ describe("the gate fires on the live handleResponses path", () => {
     authMode: "oauth",
     apiKey: "xai-oauth-test-token",
   });
+
+  async function withXaiOAuthHome<T>(fn: () => Promise<T>): Promise<T> {
+    const previousHome = process.env.OPENCODEX_HOME;
+    const dir = mkdtempSync(join(tmpdir(), "ocx-xai-fast-"));
+    process.env.OPENCODEX_HOME = dir;
+    try {
+      await saveCredential("xai", {
+        access: "xai-oauth-test-token",
+        refresh: "xai-oauth-refresh",
+        expires: Date.now() + 3_600_000,
+        accountId: "xai-fast-account",
+        source: "oauth",
+      });
+      return await fn();
+    } finally {
+      if (previousHome === undefined) delete process.env.OPENCODEX_HOME;
+      else process.env.OPENCODEX_HOME = previousHome;
+      removeTreeWithRetry(dir);
+    }
+  }
   const openRouterProvider = (overrides: Partial<OcxProviderConfig> = {}): OcxProviderConfig => {
     const provider: OcxProviderConfig = {
       ...providerConfigSeed(getProviderRegistryEntry("openrouter")!),
@@ -424,21 +487,83 @@ describe("the gate fires on the live handleResponses path", () => {
     expect(body.service_tier).toBe("flex");
   });
 
-  test("xAI API-key runtime injects priority while OAuth does not", async () => {
+  test("xAI API-key and OAuth grok-4.6 inject priority only when Fast is requested", async () => {
     const keyBody = await drive("xai", xaiKeyProvider(), "grok-4.6", {}, true);
     expect(keyBody.service_tier).toBe("priority");
-    const oauthBody = await drive("xai", xaiOAuthProvider(), "grok-4.6", {}, true);
-    expect(oauthBody).not.toHaveProperty("service_tier");
-    for (const provider of [xaiKeyProvider(), xaiOAuthProvider()]) {
+
+    await withXaiOAuthHome(async () => {
+      const oauthFast = await drive("xai", xaiOAuthProvider(), "grok-4.6", {}, true);
+      expect(oauthFast.service_tier).toBe("priority");
+      const oauthCaller = await drive("xai", xaiOAuthProvider(), "grok-4.6", { service_tier: "priority" });
+      expect(oauthCaller.service_tier).toBe("priority");
+      const oauthUnset = await drive("xai", xaiOAuthProvider(), "grok-4.6", {});
+      expect(oauthUnset).not.toHaveProperty("service_tier");
+      const oauthOff = await drive("xai", xaiOAuthProvider(), "grok-4.6", { service_tier: "priority" }, false);
+      expect(oauthOff).not.toHaveProperty("service_tier");
+
+      const oauthOther = await drive("xai", {
+        ...xaiOAuthProvider(),
+        models: ["grok-4.5"],
+      }, "grok-4.5", {}, true);
+      expect(oauthOther).not.toHaveProperty("service_tier");
+
       const optedOut = await drive(
         "xai",
-        { ...provider, supportsServiceTier: false },
+        { ...xaiOAuthProvider(), supportsServiceTier: false },
         "grok-4.6",
         {},
         true,
       );
       expect(optedOut).not.toHaveProperty("service_tier");
-    }
+    });
+
+    const keyOptedOut = await drive(
+      "xai",
+      { ...xaiKeyProvider(), supportsServiceTier: false },
+      "grok-4.6",
+      {},
+      true,
+    );
+    expect(keyOptedOut).not.toHaveProperty("service_tier");
+  });
+
+  test("OAuth grok-4.6 Fast lands on the CLI Responses URL with priority", async () => {
+    await withXaiOAuthHome(async () => {
+      const seen: Array<{ url: string; body: Record<string, unknown> }> = [];
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+        seen.push({
+          url,
+          body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+        });
+        return new Response("data: [DONE]\n\n", { status: 200, headers: { "content-type": "text/event-stream" } });
+      }) as typeof fetch;
+
+      await handleResponses(
+        new Request("http://localhost/v1/responses", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            model: "xai/grok-4.6",
+            input: "Reply only OK",
+            stream: true,
+            reasoning: { effort: "low" },
+          }),
+        }),
+        { providers: { xai: xaiOAuthProvider() }, fastMode: true } as unknown as OcxConfig,
+        { model: "", provider: "" },
+        {},
+      );
+
+      expect(seen).toHaveLength(1);
+      expect(seen[0].url).toBe("https://cli-chat-proxy.grok.com/v1/responses");
+      expect(seen[0].body.model).toBe("grok-4.6");
+      expect(seen[0].body.service_tier).toBe("priority");
+    });
   });
 
   test("an unclassified custom Responses provider keeps caller values; only explicit false strips", async () => {

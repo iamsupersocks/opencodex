@@ -261,6 +261,13 @@ advertised where it cannot be honored. An `openai-chat` destination can authoriz
 eligible model with `chatServiceTier: true`, or authorize only exact models with
 `modelSupportsServiceTier`; Responses routes do not need that extra Chat wire authorization.
 
+xAI splits that capability by authentication. An API key against `https://api.x.ai/v1` may use
+Priority Processing on the public Chat Completions and Responses APIs. Grok OAuth uses the
+separate CLI gateway at `https://cli-chat-proxy.grok.com/v1`. Fast is verified there only for
+`xai/grok-4.6` on `/v1/responses` (`service_tier: priority`); other OAuth Grok models stay
+unclassified and do not advertise Fast. `fastMode` remains unset by default, so priority is
+opt-in from the Codex Fast control or an explicit `service_tier` / `fastMode: true`.
+
 ## Subagent selection
 
 Codex sorts picker-visible catalog entries by ascending `priority` and advertises the first five as

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createOpenAIChatAdapter } from "../../../src/adapters/openai-chat";
+import { openaiResponsesUrl } from "../../../src/adapters/openai-responses-url";
 import { parseRequest } from "../../../src/responses/parser";
 import { buildModelsRequest } from "../../../src/oauth";
 import {
@@ -93,12 +94,26 @@ describe("xAI auth-mode transport selection", () => {
 
     expect(effective.baseUrl).toBe(XAI_GROK_CLI_BASE_URL);
     expect(request.url).toBe(`${XAI_GROK_CLI_BASE_URL}/chat/completions`);
+    expect(openaiResponsesUrl(effective.baseUrl)).toBe(`${XAI_GROK_CLI_BASE_URL}/responses`);
     expect(request.headers).toMatchObject({
       Authorization: "Bearer oauth-token",
       "x-grok-client-identifier": "opencodex",
       "x-grok-client-version": XAI_GROK_CLIENT_VERSION,
       "x-xai-token-auth": "xai-grok-cli",
     });
+  });
+
+  test("OAuth grok-4.6 Responses uses the CLI proxy /v1/responses endpoint", () => {
+    const effective = resolveProviderTransport("xai", {
+      ...provider("oauth"),
+      defaultModel: "grok-4.6",
+    });
+    expect(effective.baseUrl).toBe(XAI_GROK_CLI_BASE_URL);
+    expect(openaiResponsesUrl(effective.baseUrl)).toBe("https://cli-chat-proxy.grok.com/v1/responses");
+    expect(resolveWireProtocolOverride("xai", "grok-4.6", provider("oauth"), "responses").adapter)
+      .toBe("openai-responses");
+    expect(resolveWireProtocolOverride("xai", "grok-4.5", provider("oauth"), "responses").adapter)
+      .toBe("openai-responses");
   });
 
   test("OAuth model discovery uses the subscription transport", () => {

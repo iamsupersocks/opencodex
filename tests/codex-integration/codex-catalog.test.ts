@@ -1976,7 +1976,8 @@ describe("provider discovered model display names", () => {
     expect(afterIdentity).toEqual({
       ...beforeIdentity,
       maxOutputTokens: 500_000,
-      supportsServiceTier: false,
+      supportsServiceTier: true,
+      fastTierDescription: "Priority processing, 2x token price",
     });
     expect(catalogModelSlug(output)).toBe("xai/grok-4.6");
   });
@@ -3165,6 +3166,33 @@ describe("Codex catalog routed normalization", () => {
     expect(blocked).not.toHaveProperty("service_tiers");
     expect(blocked).not.toHaveProperty("additional_speed_tiers");
   });
+
+  test("normalizeRoutedCatalogEntry still strips tiers before xAI OAuth grok-4.6 restore", () => {
+    const stripped = normalizeRoutedCatalogEntry({
+      ...nativeTemplate(),
+      slug: "xai/grok-4.6",
+      service_tiers: [{ id: "priority", name: "Fast", description: "native leak" }],
+      additional_speed_tiers: ["fast"],
+      service_tier: "priority",
+      default_service_tier: "priority",
+    });
+    expect(stripped).not.toHaveProperty("service_tiers");
+    expect(stripped).not.toHaveProperty("additional_speed_tiers");
+    expect(stripped).not.toHaveProperty("service_tier");
+    expect(stripped).not.toHaveProperty("default_service_tier");
+
+    const restored = buildCatalogEntries(nativeTemplate(), [], [
+      { provider: "xai", id: "grok-4.6", supportsServiceTier: true, fastTierDescription: "Priority processing, 2x token price" },
+      { provider: "xai", id: "grok-4.5" },
+    ]);
+    expect(restored.find(entry => entry.slug === "xai/grok-4.6")?.service_tiers).toEqual([{
+      id: "priority",
+      name: "Fast",
+      description: "Priority processing, 2x token price",
+    }]);
+    expect(restored.find(entry => entry.slug === "xai/grok-4.5")).not.toHaveProperty("service_tiers");
+  });
+
   test("buildCatalogEntries advertises parallel tool calls only for Cursor routed models", () => {
     const entries = buildCatalogEntries(nativeTemplate(), [], [
       { provider: "cursor", id: "composer-2.5", owned_by: "cursor" },

@@ -170,7 +170,10 @@ describe("xAI OAuth Chat reasoning streaming", () => {
       expect(outboundBody?.model).toBe("grok-4.6");
       expect(outboundBody?.messages).toBeArray();
       expect(outboundBody?.stream).toBe(true);
-      expect(outboundBody?.service_tier).toBeUndefined();
+      // Caller sent service_tier: priority — canonical Fast opt-in. OAuth grok-4.6 is
+      // Fast-capable; Chat can serialize the field. Unset/false still drop (see
+      // service-tier-capability). Verified live Fast remains Responses-only.
+      expect(outboundBody?.service_tier).toBe("priority");
       expect(outboundBody?.reasoning_effort).toBe("xhigh");
       expect(outboundBody?.input).toBeUndefined();
       expect(outboundBody?.reasoning).toBeUndefined();
