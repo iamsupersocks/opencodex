@@ -8,6 +8,7 @@ import {
   resetLiveCursorClaudeWireIdentitiesForTests,
   resolveCursorSelection,
 } from "../../../src/adapters/cursor/catalog";
+import { CURSOR_STATIC_MODELS } from "../../../src/adapters/cursor/discovery";
 import { clearModelCache } from "../../../src/codex/model-cache";
 import {
   cursorEffortSuffix,
@@ -188,6 +189,27 @@ describe("cursor umbrella catalog (devlog 260828_cursor_umbrella_catalog)", () =
       expect(resolveCursorSelection("claude-opus-5-5", "medium").wireId).toBe("claude-opus-5-5-medium");
       expect(resolveCursorSelection("claude-opus-5-5", "high").wireId).toBe("claude-opus-5-5-high");
       expect(resolveCursorSelection("claude-opus-5-5", "medium", undefined, { fast: true }).wireId).toBe("claude-opus-5-5-medium-fast");
+      for (const level of ["low", "medium", "high", "xhigh", "max"]) {
+        expect(resolveCursorSelection("claude-opus-5-5", level).wireId).toBe(`claude-opus-5-5-${level}`);
+        expect(resolveCursorSelection("claude-opus-5-5", level, undefined, { fast: true }).wireId).toBe(`claude-opus-5-5-${level}-fast`);
+      }
+    });
+
+    test("claude-opus-5-5 thinking variants stay out of discovery and are not rewritten to regular", () => {
+      const capability = CURSOR_CAPABILITIES["claude-opus-5-5"]!;
+      expect(capability.defaultVariant).toBe("regular");
+      expect(capability.variants.thinking?.quarantined).toBe(true);
+      expect(capability.variants.thinkingFast?.quarantined).toBe(true);
+      expect(capability.variants.fast?.levels).toEqual(["low", "medium", "high", "xhigh", "max"]);
+      const discovered = CURSOR_STATIC_MODELS.map(model => model.id);
+      expect(discovered).toContain("claude-opus-5-5");
+      expect(discovered).not.toContain("claude-opus-5-5-thinking");
+      expect(discovered).not.toContain("claude-opus-5-5-thinking-fast");
+      expect(cursorUmbrellaRows().some(row => row.id === "claude-opus-5-5")).toBe(true);
+      expect(resolveCursorSelection("claude-opus-5-5-thinking-high").wireId).toBe("claude-opus-5-5-thinking-high");
+      expect(resolveCursorSelection("claude-opus-5-5-thinking-max-fast").wireId).toBe("claude-opus-5-5-thinking-max-fast");
+      expect(resolveCursorSelection("claude-opus-5-5-thinking", "high").wireId)
+        .not.toBe(resolveCursorSelection("claude-opus-5-5", "high").wireId);
     });
 
     test("bare-thinking families ignore effort", () => {

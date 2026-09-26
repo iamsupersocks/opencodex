@@ -458,11 +458,16 @@ compatibility pair: `agent.v1.AgentService/RunSSE` for server output and
   Foreground `shellArgs` and `shellStreamArgs` are an exception: both are rejected before spawn
   on every platform until kernel-backed descendant ownership is available. Use client shell tools;
   background-shell execution and other native operations retain their existing policy.
-- The denial reply is a silent redirect whose wording follows the request catalog. A catalog that
-  carries `shell_command`/`exec_command` or a unified `exec` keeps the bridge wording; a catalog
-  that carries neither — an orchestrator client exposing only its own Responses tools, for example —
-  is redirected to the request's actual wire names, so the model is pointed at a tool that exists
-  rather than at an alias it cannot see.
+- Native-tool refusals describe the request's actual tool catalog. Codex code-mode requests
+  are directed to the advertised `exec` code cell and its nested helpers, with explicit output
+  emission. Flat shell catalogs retain their `shell_command`/`exec_command` guidance; catalogs
+  without an execution path name their actual tools. The refusal executes nothing and does not
+  ask the model to hide failures. No permission change or native-execution opt-in is required.
+- Client operations may be exposed through Cursor's dynamic-tool provider
+  `opencodex-responses`, rather than direct functions. Guidance permits the harness discovery
+  and invocation wrappers (`GetDynamicTools` then `CallDynamicTool`) and requires the returned
+  schema. The model invokes these tools itself; a native refusal does not queue work for another
+  agent or require the user to relay the command.
 - A recognized Cursor data-policy gate is reported with its title, the action it requires, and the
   Cursor Dashboard review URL instead of a bare `failed_precondition: Error`. Recognition is limited
   to the known structured detail: unknown or malformed details keep the generic Connect error, no

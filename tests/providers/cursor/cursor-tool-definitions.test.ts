@@ -611,13 +611,18 @@ describe("Cursor tool definitions", () => {
     expect(note).toContain("`exec_command`");
     expect(note).toContain("`mcp__fs__read_file`");
     expect(note).toContain("current tool catalog as ground truth");
+    expect(note).toContain("GetDynamicTools");
+    expect(note).toContain("CallDynamicTool");
+    expect(note).toContain("provider `opencodex-responses`");
+    expect(note).toContain("discovery/invocation wrappers are allowed");
+    expect(note).toContain("You make these calls yourself");
     expect(note).toContain("This turn does not expose neighboring-agent tool names `Read`, `Grep`, `Glob`, `Bash`, `LS`, `Write`");
     expect(note).toContain("not an external MCP server tool");
-    expect(note).toContain("NEVER attempt Cursor-native Shell, Read, Grep, List");
-    expect(note).toContain("`exec_command` is the ONLY shell surface");
-    expect(note).toContain("never as a fallback after probing a native tool");
-    expect(note).toContain("Tool-selection commentary is forbidden");
-    expect(note).toContain("FIRST visible action is the bridge call itself");
+    expect(note).toContain("Cursor-native Shell, Read, Grep, List and Write are not connected to the Codex host");
+    expect(note).toContain("Use `exec_command` directly for authorized shell operations");
+    expect(note).toContain("A native refusal does not remove the advertised tools");
+    expect(note).toContain("Report actual tool failures accurately");
+    expect(note).not.toMatch(/do not narrate|commentary is forbidden|do not comment/i);
     expect(note).not.toContain("such as `shell_command` / `exec_command`");
     expect(note).not.toContain("Never tell the user");
     expect(note).not.toContain("silently call");
@@ -635,8 +640,8 @@ describe("Cursor tool definitions", () => {
     expect(note).toContain("`shell_command`");
     expect(note).toContain("`shell_command` and `exec_command` are aliases of the same bridge");
     expect(note).toContain("mcp_opencodex-responses_shell_command");
-    expect(note).toContain("NEVER attempt Cursor-native Shell, Read, Grep, List");
-    expect(note).toContain("`shell_command` is the ONLY shell surface");
+    expect(note).toContain("Cursor-native Shell, Read, Grep, List and Write are not connected to the Codex host");
+    expect(note).toContain("Use `shell_command` directly for authorized shell operations");
     expect(note).not.toContain("Never tell the user");
     expect(note).not.toContain("silently call");
   });
@@ -757,6 +762,10 @@ describe("Cursor code mode tool guidance", () => {
     if (!note) throw new Error("Expected Cursor tool guidance note");
 
     expect(note).toContain("is Codex code mode");
+    expect(note).toContain("GetDynamicTools");
+    expect(note).toContain("CallDynamicTool");
+    expect(note).toContain("no separate agent or user relay");
+    expect(note).not.toContain("call only those exact names");
     expect(note).toContain("V8 isolate");
     expect(note).toContain("await tools.<name>(...)");
     expect(note).toContain("await tools.exec_command({cmd: " + "\"" + "ls" + "\"" + "})");

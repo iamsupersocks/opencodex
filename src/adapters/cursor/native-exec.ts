@@ -54,7 +54,8 @@ import {
 import { clientBytes, execBytes, execStreamCloseBytes, execThrowBytes } from "./native-exec-common";
 import type { McpToolDefinition } from "./gen/agent_pb";
 import { OCX_RESPONSES_TOOL_PROVIDER } from "./tool-definitions";
-import { cursorRequestHasExecutionPath, cursorRequestHasShellAlias, cursorToolWireName } from "./tool-naming";
+import { cursorRequestHasExecutionPath, cursorRequestHasShellAlias, cursorRequestUsesCodeMode, cursorToolWireName, isCursorCodeModeExecTool } from "./tool-naming";
+import { CURSOR_CLIENT_TOOL_ACCESS_NOTE } from "./tool-guidance";
 import type { OcxTool } from "../../types";
 
 export type CursorNativeExecDeps = CursorNativeNetworkDeps & CursorNativeToolDeps;
@@ -84,19 +85,28 @@ export interface CursorNativeExecContext extends CursorNativeExecDeps {
 const REDIRECT_HINT_MAX_TOOLS = 16;
 
 /**
- * Redirect text for Cursor-native fs/shell/fetch attempts when the request catalog carries NO shell
- * bridge or other execution-path tool (an orchestrator client that only exposes delegation tools,
- * for example). The default refusal steers the model to `shell_command` / `exec_command`; when those
- * are not in the catalog some models (kimi-k3 observed) conclude every tool is unavailable and give
- * up instead of using the tools that ARE listed. Name the real catalog instead — the client tools
- * plus any configured MCP tools advertised this turn — and stay neutral about what those tools can
- * do, so a listed file/search/fetch tool is never contradicted.
+ * Native denials must describe this turn's execution contract. Code mode exposes freeform exec
+ * with nested helpers, not a top-level shell bridge. Other catalogs without an execution path
+ * need their real names instead. This only supplies guidance; it never executes or replays work.
  */
 export function cursorNativeExecRedirectHint(
-  tools: readonly Pick<OcxTool, "namespace" | "name">[] | undefined,
+  tools: readonly Pick<OcxTool, "namespace" | "name" | "freeform">[] | undefined,
   mcpToolDefs: readonly Pick<McpToolDefinition, "name" | "providerIdentifier">[] = [],
 ): string | undefined {
   const clientTools = tools ?? [];
+  if (cursorRequestUsesCodeMode(clientTools)) {
+    const execName = cursorToolWireName(clientTools.find(isCursorCodeModeExecTool)!);
+    return (
+      `The native operation was not executed. This request exposes Codex code mode through \`${execName}\` `
+      + `(display alias \`mcp_${OCX_RESPONSES_TOOL_PROVIDER}_${execName}\`). `
+      + CURSOR_CLIENT_TOOL_ACCESS_NOTE + " "
+      + "Its input is JavaScript, not a shell command: use text(await tools.exec_command({cmd: \"...\"})) for an authorized command. "
+      + "For file edits use tools.apply_patch inside that same code cell, following its declared input format. "
+      + "These helpers are not top-level tools; inspect the exec description or ALL_TOOLS for available nested helpers. "
+      + "Other tools actually listed in the current catalog remain callable. Preserve the task's permissions and scope. "
+      + "Report any actual failure accurately; this refusal does not mean the Codex tools are unavailable."
+    );
+  }
   if (cursorRequestHasShellAlias(clientTools) || cursorRequestHasExecutionPath(clientTools)) return undefined;
   // Client tools are advertised under OCX_RESPONSES_TOOL_PROVIDER, so the harness shows them as
   // `mcp_<provider>_<wire name>`; configured MCP servers are advertised under their own provider id.
@@ -114,7 +124,7 @@ export function cursorNativeExecRedirectHint(
     + `(the harness displays a \`${OCX_RESPONSES_TOOL_PROVIDER}\` entry as \`mcp_${OCX_RESPONSES_TOOL_PROVIDER}_<name>\`; that is the same tool). `
     + "Cursor-native Read/Glob/Grep/LS/Shell/Write/Fetch are not part of this request's catalog; do not retry them. "
     + "Pick the listed tool that fits the operation — a listed file, search, or fetch tool if there is one, otherwise the listed tool that delegates work to a worker agent. "
-    + "Do NOT narrate this redirect, do NOT comment on tool availability, and do NOT re-announce the task — just make the catalog tool call."
+    + "Report any actual failure accurately; this refusal does not mean the listed tools are unavailable."
   );
 }
 

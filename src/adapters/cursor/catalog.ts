@@ -184,15 +184,19 @@ export const CURSOR_CAPABILITIES: Record<string, CursorCapability> = {
       thinkingFast: { levels: FULL, order: T },
     },
   },
-  // 260923 Claude Opus 5.5: live GetUsableModels roster advertises flat effort-suffixed
-  // wire ids (claude-opus-5-5-{low..max} and -fast) rather than a thinking variant.
+  // 260923 live GetUsableModels advertises claude-opus-5-5-{effort} and
+  // claude-opus-5-5-{effort}-fast through max, and no thinking wire. The bare
+  // slug stays on regular. thinking and thinkingFast remain so an explicit slug
+  // is not rewritten to regular, and both are quarantined out of picker/discovery.
   "claude-opus-5-5": {
     displayName: "Claude Opus 5.5",
     window: CONTEXT_1M,
     defaultVariant: "regular",
     variants: {
       regular: { levels: FULL },
+      thinking: { levels: FULL, order: T, quarantined: true },
       fast: { levels: FULL },
+      thinkingFast: { levels: FULL, order: T, quarantined: true },
     },
   },
   "glm-5.2": {

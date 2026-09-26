@@ -406,7 +406,7 @@ describe("Cursor native exec sandbox policy", () => {
  * catalog that actually exists instead.
  */
 describe("Cursor native exec catalog-aware redirect hint", () => {
-  const SILENT_REDIRECT_FORBIDDEN = [/blocked/i, /\bdisabled\b/i, /not executed/i, /\bdenied\b/i, /cannot execute/i, /차단/];
+  const SILENT_REDIRECT_FORBIDDEN = [/do not narrate/i, /do not comment on tool availability/i, /commentary is forbidden/i];
   type CatalogTool = { name: string; namespace?: string; freeform?: boolean };
   const delegationOnlyCatalog: CatalogTool[] = [{ name: "task" }, { name: "ask_user" }];
 
@@ -420,7 +420,7 @@ describe("Cursor native exec catalog-aware redirect hint", () => {
     expect(hint).toContain("`ocx_client_task`");
     expect(hint).toContain("`ocx_client_ask_user`");
     expect(hint).toContain("mcp_opencodex-responses_<name>");
-    expect(hint).toContain("Do NOT narrate");
+    expect(hint).toContain("Report any actual failure");
     expect(hint).not.toContain("shell_command");
     expect(hint).not.toContain("exec_command");
     // Neutral about capabilities: a listed file/search/fetch tool must never be contradicted.
@@ -451,9 +451,36 @@ describe("Cursor native exec catalog-aware redirect hint", () => {
     ["an empty catalog", []],
     ["a bare exec_command bridge", [{ name: "exec_command" }]],
     ["a bare shell_command bridge next to client tools", [{ name: "task" }, { name: "shell_command" }]],
-    ["unified exec next to client tools", [{ name: "task" }, { name: "exec", freeform: true }]],
+    ["structured exec", [{ name: "exec" }]],
+    ["freeform exec alongside a bare shell bridge", [{ name: "exec", freeform: true }, { name: "exec_command" }]],
   ])("keeps the default bridge wording for %s", (_name, tools) => {
     expect(cursorNativeExecRedirectHint(tools)).toBeUndefined();
+  });
+
+  test.each<CatalogTool[][]>([
+    [[{ name: "exec", freeform: true }]],
+    [[{ name: "task" }, { name: "exec", freeform: true }]],
+    [[{ namespace: "opencodex-responses", name: "exec", freeform: true }]],
+  ])("routes code-mode denials through the advertised exec and nested helpers: %j", tools => {
+    const hint = cursorNativeExecRedirectHint(tools);
+    const exec = tools.find(tool => tool.name === "exec")!;
+    expect(hint).toContain(exec.namespace ? "`opencodex-responses__exec`" : "`exec`");
+    expect(hint).toContain("text(await tools.exec_command(");
+    expect(hint).toContain("tools.apply_patch");
+    expect(hint).toContain("GetDynamicTools");
+    expect(hint).toContain("CallDynamicTool");
+    expect(hint).toContain("provider `opencodex-responses`");
+    expect(hint).toContain("You make these calls yourself");
+    expect(hint).toContain("not top-level tools");
+    expect(hint).toContain("Report any actual failure");
+    expect(hint).not.toContain("shell_command");
+    for (const pattern of SILENT_REDIRECT_FORBIDDEN) expect(hint).not.toMatch(pattern);
+  });
+
+  test("a foreign namespaced freeform exec does not imply Codex code mode", () => {
+    const hint = cursorNativeExecRedirectHint([{ namespace: "custom", name: "exec", freeform: true }]);
+    expect(hint).toContain("`custom__exec`");
+    expect(hint).not.toContain("tools.exec_command");
   });
 
   test("lists namespaced tools by wire name and caps a long catalog", () => {
@@ -471,8 +498,11 @@ describe("Cursor native exec catalog-aware redirect hint", () => {
     expect(nativeShellDisabledMessage("custom hint")).toBe("custom hint");
   });
 
-  test("every denied native fs, shell, and fetch frame carries the hint and executes nothing", async () => {
-    const hint = cursorNativeExecRedirectHint(delegationOnlyCatalog);
+  test.each<[string, CatalogTool[], string]>([
+    ["delegation", delegationOnlyCatalog, "`ocx_client_task`"],
+    ["code mode", [{ name: "exec", freeform: true }], "text(await tools.exec_command("],
+  ])("every denied native fs, shell, and fetch frame carries the %s hint and executes nothing", async (_label, catalog, expectedTool) => {
+    const hint = cursorNativeExecRedirectHint(catalog);
     expect(hint).toBeDefined();
     const dir = mkdtempSync(join(tmpdir(), "ocx-cursor-hint-"));
     const existing = join(dir, "grounding.txt");
@@ -502,10 +532,10 @@ describe("Cursor native exec catalog-aware redirect hint", () => {
     ];
     for (const frame of frames) {
       const text = stringifyReplies(await handleCursorNativeExec(frame, deps));
-      expect(text).toContain("`ocx_client_task`");
-      expect(text).toContain("Do NOT narrate");
+      expect(text).toContain(expectedTool);
+      expect(text).toContain("Report any actual failure");
       expect(text).not.toContain("shell_command");
-      expect(text).not.toContain("exec_command");
+      for (const pattern of SILENT_REDIRECT_FORBIDDEN) expect(text).not.toMatch(pattern);
       expect(text).not.toContain(content);
       // Denied shell frames echo the command text; only an executed command could produce the joined marker.
       expect(text).not.toContain("RAN_MARKER");

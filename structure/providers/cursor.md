@@ -39,6 +39,25 @@ that survives the transport budget: unified Desktop `exec` as well as the legacy
 unified `exec` keeps its own schema and is surfaced back to Codex as a client tool. It must never
 fall through to the separate native-local-exec dispatcher.
 
+`src/adapters/cursor/native-exec.ts` derives refusal guidance from the current catalog.
+Client operations are distinct from Cursor's native function list: `src/adapters/cursor/tool-guidance.ts`
+explains discovery through `GetDynamicTools` for `opencodex-responses`, followed by
+`CallDynamicTool` with the returned schema. The discovery/invocation wrappers remain
+permitted even though they are not client operation names. Code-mode refusals reuse that
+access guidance; a refusal never queues a command for another agent or authorizes a replay.
+Freeform code-mode `exec` is checked before the legacy execution-path shortcut: its refusal
+names the advertised code cell and nested `tools.exec_command` / `tools.apply_patch`, with
+explicit result emission. Structured or foreign namespaced `exec` does not imply code mode,
+and a co-visible bare shell bridge retains its flat contract. Refusals and initial guidance
+preserve accurate failure reporting instead of instructing the model to conceal tool errors.
+They do not execute, rewrite, or replay the refused operation. The native policy remains
+unchanged, including filesystem, shell, stdin, and fetch denials.
+
+Claude Opus 5.5 in `src/adapters/cursor/catalog.ts` keeps `regular` as the selectable default
+and a full fast ladder through `max`. Its `thinking` and `thinkingFast` variants are quarantined:
+umbrella picker and `src/adapters/cursor/discovery.ts` rows do not list them, while an explicit
+thinking slug still resolves to that thinking wire id instead of the regular variant.
+
 In external Cursor turns using code mode or shell aliases, the bounded leading-commentary guard in `src/adapters/cursor/envelope-echo.ts` counts `Shell`, `네이티브 셸`, and `네이티브 쉘` as one `shell` identity, including spacing variants and names split across text deltas. Korean aliases require a Unicode-aware left token boundary so wording embedded in a larger word or identifier is not counted; punctuation and following Korean grammatical suffixes remain supported. Rejection still requires a failure claim plus either an explicit redirect or at least two distinct native-tool identities; repeated aliases alone do not count as multiple tools.
 
 > Decision record: [ADR-0048](../decisions/ADR-0048-cursor-native-exec.md)

@@ -4,6 +4,13 @@ import { CODEX_SHELL_BRIDGE_TOOL_NAMES, CODEX_TOOL_SEARCH_TOOL, CODEX_UNIFIED_EX
 
 export const CURSOR_SHELL_ALIAS_SYSTEM_NOTE =
   'Shell commands use the Codex shell bridge tool shown in this turn\'s catalog (`shell_command` or `exec_command`) with JSON arguments like {"cmd":"..."}. The long `mcp_opencodex-responses_*` display name is the same tool. Prefer it over Cursor-native Shell.';
+export const CURSOR_CLIENT_TOOL_ACCESS_NOTE =
+  "Client operations are registered with Cursor's dynamic-tool provider `opencodex-responses`. "
+  + "If a listed operation is absent from your directly callable function list, use the harness `GetDynamicTools` to inspect that provider, then `CallDynamicTool` to invoke the registered tool, using the exact name and argument schema returned by discovery. "
+  + "The dynamic-tool discovery/invocation wrappers are allowed; they need not appear in the list of client operations. "
+  + "You make these calls yourself in this turn; Codex executes the requested operation and returns its result. "
+  + "A native Cursor refusal does not schedule work, and no separate agent or user relay is needed. "
+  + "Preserve existing permissions and authorization. If discovery or invocation actually fails, report that error; an absent direct function is not proof that the registered tool is unavailable.";
 const NEIGHBOR_AGENT_TOOL_NAMES = ["Read", "Grep", "Glob", "Bash", "LS", "Write"] as const;
 const NEIGHBOR_AGENT_TOOL_ALIASES: Record<(typeof NEIGHBOR_AGENT_TOOL_NAMES)[number], readonly string[]> = {
   Read: ["read", "read_file"],
@@ -177,8 +184,9 @@ export function buildCursorToolGuidanceSystemNote(
     ? "Match shell syntax to the Codex client host that runs the bridge (not only the proxy OS). Windows PowerShell 5.1: no CMD `cd /d`, no bash heredocs (`<<EOF`); `&&`/`||` are unsupported parser errors — prefer the bridge working-directory argument for directory changes, and use `if ($?) { ... }` for success-gated follow-up steps; do not treat `;` as a substitute for `&&`. POSIX: use portable commands (`cat`/`ls`/`rg`); never emit Get-Content or Get-ChildItem unless the host shell is PowerShell. After a shell failure, make at most one corrected bridge attempt, then report the error and stop — do not repeat equivalent failing commands."
     : undefined;
   const notes = [
-    `Cursor tool calls: available tool names are exactly ${listedNames}.`,
-    "Use the current tool catalog as ground truth and call only those exact names with their listed argument keys.",
+    `Cursor client operations: available tool names are exactly ${listedNames}.`,
+    "Use the current tool catalog as ground truth for client operation names and their listed argument keys.",
+    CURSOR_CLIENT_TOOL_ACCESS_NOTE,
     unavailableNeighborNames.length > 0
       ? `This turn does not expose neighboring-agent tool names ${quotedNames(unavailableNeighborNames)}; do not call or suggest them unless the catalog lists them.`
       : undefined,
@@ -191,19 +199,19 @@ export function buildCursorToolGuidanceSystemNote(
       ? CODE_MODE_RESULT_ECHO_SENTENCE + " There is no `require`, no `module`, and no filesystem or network globals; reach the host only through the nested helpers. " + CODE_MODE_HOST_CONTRACT_SENTENCE
       : undefined,
     codeMode
-      ? "NEVER attempt Cursor-native Shell, Read, Grep, List, Write, or any tool absent from the catalog — they are not executed in this environment and every probe wastes a turn. The exec code cell (with its nested helpers) is the ONLY execution surface; go to it directly on the FIRST attempt and do not narrate switching surfaces."
+      ? "Use the advertised exec code cell and its nested helpers for local operations. Cursor-native Shell, Read, Grep, List and Write are not connected to the Codex host. A native refusal does not remove the advertised tools."
       : undefined,
     hasBareExec
       ? `${shellBridgeLabel} is the Codex Responses shell bridge for this turn, exposed through Cursor's tool protocol; it is not an external MCP server tool. \`shell_command\` and \`exec_command\` are aliases of the same bridge.`
       : undefined,
     hasBareExec
-      ? "Your tool list may display it under a longer `mcp_opencodex-responses_shell_command` / `mcp_opencodex-responses_exec_command` name; those are the SAME tool — call whichever your list shows, and do not comment on the naming difference to the user."
+      ? "Your tool list may display it under a longer `mcp_opencodex-responses_shell_command` / `mcp_opencodex-responses_exec_command` name; those are the SAME tool — call whichever your list shows."
       : undefined,
     hasBareExec
-      ? `NEVER attempt Cursor-native Shell, Read, Grep, List, Write, or any tool not in the catalog above — they are not executed locally in this environment and every attempt wastes a turn and can stall the session. ${shellBridgeLabel} is the ONLY shell surface; go to it directly on the FIRST attempt, never as a fallback after probing a native tool. Do not narrate switching surfaces ("native is blocked, using the bridge instead") — there is exactly one surface.`
+      ? `Use ${shellBridgeLabel} directly for authorized shell operations. Cursor-native Shell, Read, Grep, List and Write are not connected to the Codex host. A native refusal does not remove the advertised tools.`
       : undefined,
     hasBareExec
-      ? "Tool-selection commentary is forbidden: for any shell, read, grep, list, or file operation, your FIRST visible action is the bridge call itself — never a sentence about which tool you will use, which tool was redirected, or switching surfaces. Words like 차단/전환/blocked/switching must not appear in your output for tool-routing reasons."
+      ? "Report actual tool failures accurately. Distinguish an unsupported native tool from a failure of the advertised Codex tool."
       : undefined,
     hostShellNote,
     "Cursor product features (Chronicle, screen recording, Notes, Plans, background agents) are available only if this turn's catalog lists a matching tool; do not offer or promise them otherwise.",

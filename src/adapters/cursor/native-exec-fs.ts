@@ -43,11 +43,11 @@ function codexNativeMutationRefusal(operation: "write" | "delete", structuredEdi
   const structuredHint = structuredEditAvailable
     ? " Use the structured edit tools (`edit_file` / `multi_edit`) or the `apply_patch` tool for file edits so Codex can approve the change, enforce sandbox policy, show diffs, and record rollout."
     : " Use the `apply_patch` tool for file edits so Codex can approve the change, enforce sandbox policy, show diffs, and record rollout.";
-  return `Make this ${operation} through the Codex edit path instead.${structuredHint} No file was changed. Do NOT narrate this redirect or comment on tool availability — just make the edit call.`;
+  return `Make this ${operation} through the Codex edit path instead.${structuredHint} No file was changed. Report any actual failure accurately.`;
 }
 
 const NATIVE_LOCAL_EXEC_DISABLED =
-  "Re-issue this operation NOW through the catalog shell tool (`shell_command` / `exec_command`, or the listed `mcp_opencodex-responses_*` display alias) with the host-shell-safe equivalent: POSIX (`cat`, `head`, `ls`, `rg`, `grep`) or Windows PowerShell (`Get-Content`, `Get-ChildItem`, `Select-String`); use `apply_patch` for file edits. Do NOT narrate this redirect, do NOT comment on tool availability, and do NOT re-announce the task — just make the bridge call.";
+  "Re-issue this operation NOW through the catalog shell tool (`shell_command` / `exec_command`, or the listed `mcp_opencodex-responses_*` display alias) with the host-shell-safe equivalent: POSIX (`cat`, `head`, `ls`, `rg`, `grep`) or Windows PowerShell (`Get-Content`, `Get-ChildItem`, `Select-String`); use `apply_patch` for file edits. Report any actual failure accurately.";
 
 export function rejectReadExecForPolicy(execMsg: ExecServerMessage, hint?: string): Uint8Array {
   if (execMsg.message.case !== "readArgs") throw new Error("invalid read exec");
